@@ -354,7 +354,7 @@ optional:
 | --- | --- | --- |
 | `git commit` | `.githooks/pre-commit` — scans the staged changes | the commit |
 | `git push` | `.githooks/pre-push` — scans every commit being pushed | the push |
-| GitHub | `Secret scan` job (`.github/workflows/gitleaks.yml`) — scans the full history on every push and pull request | updating `main` (required status check) |
+| GitHub | `Secret scan` job (`.github/workflows/gitleaks.yml`) — scans the full history on every push and pull request | updating `main` (required status check in the "Secret Scan Rule" ruleset) |
 
 - **Setup:** install gitleaks (see [Prerequisites](#prerequisites)). `npm install`
   enables the hooks automatically by running
@@ -370,6 +370,8 @@ optional:
   comment or add the finding's fingerprint to `.gitleaksignore`.
 - **Leaked secrets:** if a secret ever reaches GitHub, treat it as compromised.
   Rotate it first, then clean the history.
+- **GitHub push protection** is also enabled for the repository, so GitHub
+  itself rejects pushes that contain supported secret types.
 
 Rules are configured in [`.gitleaks.toml`](.gitleaks.toml): gitleaks' built-in
 rules plus two project rules — webhook signing secrets (`whsec_…`, used by
@@ -404,6 +406,20 @@ Keeping `sharp` current is therefore a separate requirement from keeping
 Node.js **>= 20.9** is required by `sharp` 0.35 and is enforced via the
 `engines` field in `package.json`. Make sure the Vercel project’s Node
 version matches.
+
+### Repository protection
+
+Only the repository owner can change this repository. Two GitHub rulesets
+enforce it:
+
+| Ruleset | Applies to | Rules | Bypass |
+| --- | --- | --- | --- |
+| Owner Only Rule | all branches | restrict creations, updates and deletions; block force pushes | repository admin (the owner) |
+| Secret Scan Rule | default branch (`main`) | `Secret scan` must pass; block deletions and force pushes | none — applies to the owner too |
+
+The owner pushes directly: to `devel` first, then, once `Secret scan` has
+passed on that commit, the same commit to `main`. A commit that has not passed
+the scan cannot reach `main`, and nobody can force-push or delete `main`.
 
 ### Reporting
 
