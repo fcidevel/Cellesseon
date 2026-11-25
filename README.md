@@ -84,6 +84,7 @@ _Smart AI Assistant powered by OpenAI_
 |------------|---------|
 | [ESLint 9](https://eslint.org/) | Linting via flat config (`eslint.config.mjs`) |
 | [knip](https://knip.dev/) | Unused file, dependency and export analysis |
+| [gitleaks](https://github.com/gitleaks/gitleaks) | Mandatory secret scanning (git hooks + CI) — see [Secret scanning](#secret-scanning-mandatory) |
 
 ---
 
@@ -250,6 +251,9 @@ cellesseon/
 │   │
 │   └── proxy.tsx                    # Route protection (Next.js 16 proxy)
 │
+├── .githooks/                       # pre-commit and pre-push secret-scan hooks
+├── .github/workflows/gitleaks.yml   # "Secret scan" CI job
+├── .gitleaks.toml                   # gitleaks rules and allowlist
 ├── eslint.config.mjs                # ESLint flat configuration
 ├── next.config.ts                   # Next.js configuration
 ├── tailwind.config.ts               # Tailwind CSS configuration
@@ -257,8 +261,8 @@ cellesseon/
 ├── postcss.config.mjs               # PostCSS configuration
 ├── mui.d.ts                         # MUI theme type augmentation
 ├── build-check.sh                   # Vercel branch build guard
-├── AGENTS.md                        # Contributor and agent guidelines
-├── SPEC.md                          # Full application specification
+├── AGENTS.md                        # Contributor and agent guidelines (local only, gitignored)
+├── SPEC.md                          # Full application specification (local only, gitignored)
 └── package.json                     # Dependencies & scripts
 ```
 
@@ -269,7 +273,8 @@ cellesseon/
 ### Prerequisites
 
 - Node.js 20.9+ (required by `sharp` 0.35)
-- npm or yarn
+- npm (the repo ships `package-lock.json`)
+- [gitleaks](https://github.com/gitleaks/gitleaks) v8.25.0+ — `winget install Gitleaks.Gitleaks` or `brew install gitleaks`. Required: the git hooks block every commit and push without it (see [Secret scanning](#secret-scanning-mandatory))
 - MongoDB instance
 - AWS S3 bucket
 - Clerk account
@@ -283,7 +288,8 @@ cellesseon/
    ```bash
    npm install
    ```
-3. Set up environment variables (see Environment Variables section)
+   This also enables the secret-scanning git hooks (`git config core.hooksPath .githooks`).
+3. Set up environment variables (see Environment Variables section). Real values go only in the gitignored `.env.local` and are never committed.
 4. Run the development server:
    ```bash
    npm run dev
@@ -334,7 +340,49 @@ AWS_S3_REGION=
 AWS_S3_BUCKET=
 ```
 
-> ⚠️ **Note:** Never commit your `.env.local` file to version control. Make sure it's listed in your `.gitignore`.
+> ⚠️ **Note:** Never commit your `.env.local` file to version control. Make sure it's listed in your `.gitignore`. Never paste these values into any tracked file either — the [secret scan](#secret-scanning-mandatory) blocks commits and pushes that contain them.
+
+---
+
+## Secret scanning (mandatory)
+
+Every change is checked for leaked credentials with
+[gitleaks](https://github.com/gitleaks/gitleaks). The checks are required, not
+optional:
+
+| Where | What runs | What it blocks |
+| --- | --- | --- |
+| `git commit` | `.githooks/pre-commit` — scans the staged changes | the commit |
+| `git push` | `.githooks/pre-push` — scans every commit being pushed | the push |
+| GitHub | `Secret scan` job (`.github/workflows/gitleaks.yml`) — scans the full history on every push and pull request | updating `main` (required status check) |
+
+- **Setup:** install gitleaks (see [Prerequisites](#prerequisites)). `npm install`
+  enables the hooks automatically by running
+  `git config core.hooksPath .githooks`. Run that command yourself if you
+  haven't installed dependencies yet or installed with something other than
+  npm. `git config --get core.hooksPath` must print `.githooks`.
+- **Credentials** live only in `.env.local`, which is gitignored. The
+  [Environment Variables](#environment-variables) block above lists the
+  variable names with empty values.
+- **Never bypass** the hooks with `--no-verify`, and never force-add ignored
+  files (`git add -f`).
+- **False positives:** after review, mark the line with a `gitleaks:allow`
+  comment or add the finding's fingerprint to `.gitleaksignore`.
+- **Leaked secrets:** if a secret ever reaches GitHub, treat it as compromised.
+  Rotate it first, then clean the history.
+
+Rules are configured in [`.gitleaks.toml`](.gitleaks.toml): gitleaks' built-in
+rules plus two project rules — webhook signing secrets (`whsec_…`, used by
+Stripe and Clerk/Svix) and MongoDB connection strings with an embedded password.
+Next.js build output (`.next/`) is allowlisted.
+
+```bash
+gitleaks git . --redact --no-banner   # full git history (what CI runs)
+gitleaks dir . --redact --no-banner   # working tree, including untracked files
+```
+
+`gitleaks dir .` reports the real values in your gitignored `.env.local`. That
+is expected; it only becomes a problem if that file is staged.
 
 ---
 
