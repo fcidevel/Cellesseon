@@ -307,8 +307,12 @@ whatever bytes it is given, because `sharp` auto-detects the input format.
 Keeping `sharp` current is therefore a separate requirement from keeping
 `next` current, not a consequence of it.
 
-Node.js **>= 20.9** is required by `sharp` 0.35 and is enforced via the
-`engines` field in `package.json`.
+Node.js is pinned to the **24.x** LTS line through the `engines` field in
+`package.json`, matching the Vercel project setting (Vercel applies 24.x patch
+releases automatically). Development uses **v24.22.3** or later, which
+includes the [November 2026 Node.js security release](https://nodejs.org/en/blog/vulnerability/november-2026-security-releases)
+(16 CVEs, 7 rated High, in Node's HTTP/2, HTTPS and TLS servers). `sharp` 0.35
+itself needs Node.js 20.9 or later.
 
 ### Repository protection
 
