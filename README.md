@@ -428,14 +428,16 @@ Run `npm audit` before releasing. Never commit `.env.local`; only
 
 ---
 
-## License
+## Author
 
-This project is private and proprietary.
+Built with ❤️ by [FCI Devel](https://fcidevel.com)
 
 ---
 
-## Author
+## License
 
-Made with ❤️ by [JordacheWD](https://jordachewd.com/)
+This source code is published for reference and evaluation purposes only.
 
- 
+> No permission is granted to use, copy, modify, merge, publish, distribute, sublicense, or sell copies of this software, in whole or in part.
+
+See [LICENSE](LICENSE) for the full terms.
