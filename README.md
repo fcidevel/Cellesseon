@@ -261,136 +261,40 @@ cellesseon/
 ├── postcss.config.mjs               # PostCSS configuration
 ├── mui.d.ts                         # MUI theme type augmentation
 ├── build-check.sh                   # Vercel branch build guard
-├── AGENTS.md                        # Contributor and agent guidelines (local only, gitignored)
-├── SPEC.md                          # Full application specification (local only, gitignored)
+├── LICENSE                          # FCI Devel Reference Licence
 └── package.json                     # Dependencies & scripts
 ```
-
----
-
-## Getting Started
-
-### Prerequisites
-
-- Node.js 20.9+ (required by `sharp` 0.35)
-- npm (the repo ships `package-lock.json`)
-- [gitleaks](https://github.com/gitleaks/gitleaks) v8.25.0+ — `winget install Gitleaks.Gitleaks` or `brew install gitleaks`. Required: the git hooks block every commit and push without it (see [Secret scanning](#secret-scanning-mandatory))
-- MongoDB instance
-- AWS S3 bucket
-- Clerk account
-- Stripe account
-- OpenAI API key
-
-### Installation
-
-1. Clone the repository
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-   This also enables the secret-scanning git hooks (`git config core.hooksPath .githooks`).
-3. Set up environment variables (see Environment Variables section). Real values go only in the gitignored `.env.local` and are never committed.
-4. Run the development server:
-   ```bash
-   npm run dev
-   ```
-
-### Available Scripts
-
-| Command | Description |
-|---------|-------------|
-| `npm run dev` | Start development server |
-| `npm run build` | Build for production |
-| `npm run start` | Start production server |
-| `npm run lint` | Run ESLint (flat config, via the ESLint CLI) |
-| `npm run knip` | Report unused files, dependencies and exports |
-
----
-
-## Environment Variables
-
-Create a `.env.local` file in the root directory with the following variables:
-
-```env
-# App — base URL used for server-to-server API calls
-NEXT_PUBLIC_API_BASE_URL=http://localhost:3000
-
-# MongoDB
-MONGODB_URL=
-
-# Clerk Authentication (read by the Clerk SDK)
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=
-CLERK_SECRET_KEY=
-CLERK_WEBHOOK_SECRET=
-
-# OpenAI
-OPENAI_KEY=
-OPENAI_ORG=
-OPENAI_PRJ=
-
-# Stripe
-STRIPE_PUBLISHABLE_KEY=
-STRIPE_SECRET_KEY=
-STRIPE_WEBHOOK_SECRET=
-
-# AWS S3
-AWS_S3_ACCESS_ID=
-AWS_S3_SECRET_KEY=
-AWS_S3_REGION=
-AWS_S3_BUCKET=
-```
-
-> ⚠️ **Note:** Never commit your `.env.local` file to version control. Make sure it's listed in your `.gitignore`. Never paste these values into any tracked file either — the [secret scan](#secret-scanning-mandatory) blocks commits and pushes that contain them.
 
 ---
 
 ## Secret scanning (mandatory)
 
 Every change is checked for leaked credentials with
-[gitleaks](https://github.com/gitleaks/gitleaks). The checks are required, not
-optional:
+[gitleaks](https://github.com/gitleaks/gitleaks), at three layers:
 
-| Where | What runs | What it blocks |
+| Layer | What runs | What it blocks |
 | --- | --- | --- |
-| `git commit` | `.githooks/pre-commit` — scans the staged changes | the commit |
-| `git push` | `.githooks/pre-push` — scans every commit being pushed | the push |
-| GitHub | `Secret scan` job (`.github/workflows/gitleaks.yml`) — scans the full history on every push and pull request | updating `main` (required status check in the "Secret Scan Rule" ruleset) |
+| Commit | `.githooks/pre-commit` — scans the staged changes | the commit |
+| Push | `.githooks/pre-push` — scans every commit being pushed | the push |
+| GitHub | `Secret scan` job (`.github/workflows/gitleaks.yml`) — scans the full history on every push and pull request | updating `main` (required status check) |
 
-- **Setup:** install gitleaks (see [Prerequisites](#prerequisites)). `npm install`
-  enables the hooks automatically by running
-  `git config core.hooksPath .githooks`. Run that command yourself if you
-  haven't installed dependencies yet or installed with something other than
-  npm. `git config --get core.hooksPath` must print `.githooks`.
-- **Credentials** live only in `.env.local`, which is gitignored. The
-  [Environment Variables](#environment-variables) block above lists the
-  variable names with empty values.
-- **Never bypass** the hooks with `--no-verify`, and never force-add ignored
-  files (`git add -f`).
-- **False positives:** after review, mark the line with a `gitleaks:allow`
-  comment or add the finding's fingerprint to `.gitleaksignore`.
-- **Leaked secrets:** if a secret ever reaches GitHub, treat it as compromised.
-  Rotate it first, then clean the history.
-- **GitHub push protection** is also enabled for the repository, so GitHub
-  itself rejects pushes that contain supported secret types.
-
-Rules are configured in [`.gitleaks.toml`](.gitleaks.toml): gitleaks' built-in
-rules plus two project rules — webhook signing secrets (`whsec_…`, used by
-Stripe and Clerk/Svix) and MongoDB connection strings with an embedded password.
-Next.js build output (`.next/`) is allowlisted.
-
-```bash
-gitleaks git . --redact --no-banner   # full git history (what CI runs)
-gitleaks dir . --redact --no-banner   # working tree, including untracked files
-```
-
-`gitleaks dir .` reports the real values in your gitignored `.env.local`. That
-is expected; it only becomes a problem if that file is staged.
+- **No credentials in the repository.** Real values are never committed; only
+  `NEXT_PUBLIC_*` values ever reach the browser.
+- **Project-specific rules.** [`.gitleaks.toml`](.gitleaks.toml) keeps every
+  built-in gitleaks rule and adds two for formats this app uses: webhook
+  signing secrets (`whsec_…`, Stripe and Clerk/Svix) and MongoDB connection
+  strings with an embedded password.
+- **Supply-chain hardening.** The CI job pins `actions/checkout` to a commit SHA
+  and verifies the gitleaks release binary against its published checksum.
+- **GitHub push protection** is enabled as a further server-side check.
+- **Leaked-secret policy.** A secret that ever reaches GitHub is treated as
+  compromised: it is rotated first, then removed from the history.
 
 ---
 
 ## Security
 
-### Minimum patched versions — do not downgrade
+### Patched dependency baseline
 
 | Package | Minimum | Why |
 |---------|---------|-----|
@@ -404,8 +308,7 @@ Keeping `sharp` current is therefore a separate requirement from keeping
 `next` current, not a consequence of it.
 
 Node.js **>= 20.9** is required by `sharp` 0.35 and is enforced via the
-`engines` field in `package.json`. Make sure the Vercel project’s Node
-version matches.
+`engines` field in `package.json`.
 
 ### Repository protection
 
@@ -417,14 +320,8 @@ enforce it:
 | Owner Only Rule | all branches | restrict creations, updates and deletions; block force pushes | repository admin (the owner) |
 | Secret Scan Rule | default branch (`main`) | `Secret scan` must pass; block deletions and force pushes | none — applies to the owner too |
 
-The owner pushes directly: to `devel` first, then, once `Secret scan` has
-passed on that commit, the same commit to `main`. A commit that has not passed
-the scan cannot reach `main`, and nobody can force-push or delete `main`.
-
-### Reporting
-
-Run `npm audit` before releasing. Never commit `.env.local`; only
-`NEXT_PUBLIC_*` values reach the browser.
+A commit can reach `main` only after `Secret scan` has passed on it, and nobody
+can force-push or delete `main`.
 
 ---
 
